@@ -234,6 +234,17 @@ Contributions are welcome! Please feel free to:
 2. Create a feature branch
 3. Submit a Pull Request
 
+## ❤️ Support 
+
+If you enjoy using this project or want to help improve it, your support means the world! You can:
+
+- ⭐ Star the repository
+- 🗨️ Share feedback
+- ☕ [Buy Me a Coffee](https://buymeacoffee.com/vimal0207)
+
+[![Buy Me a Coffee](https://img.shields.io/badge/Buy%20Me%20a%20Coffee-%23FFDD00.svg?logo=buymeacoffee&logoColor=black)](https://buymeacoffee.com/vimal0207)
+
+
 ## 📄 License
 
 MIT License
