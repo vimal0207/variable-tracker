@@ -61,25 +61,25 @@ class FunctionTracker(FunctionTrackerAbstract):
             A matching key for tracking or an empty string if no match is found.
         """
         # Skip tracking if settings explicitly do not track classes or functions
-        if (class_name and not self.settings.track_classes) or not self.settings.track_functions:
+        if (class_name and not self.settings.track_classes) and not self.settings.track_functions:
             return func_name
 
         # Generate all possible key variations for matching
-        possible_keys = [
+        possible_keys = {
             f"{module_name}.{file_name}.{func_name}",
             f"{module_name}.{file_name}.{class_name}.{func_name}",
             f"{file_name}.{func_name}",
             f"{file_name}.{class_name}.{func_name}",
             f"{class_name}.{func_name}",
-            func_name
-        ]
+            func_name,
+            class_name
+        }
+        # Find the intersection of possible keys with the configured tracking keys
+        matching_keys = possible_keys.intersection(set(self.settings.track_functions) | set(self.settings.track_classes))
 
-        # Check if any of the keys match the configured tracking keys
-        for key in possible_keys:
-            if key in self.settings.track_functions or key in self.settings.track_classes:
-                return key
+        # Return the first match if any, otherwise return an empty string
+        return next(iter(matching_keys), "")
 
-        return ""
 
     def _trace_function_variables(self, frame: Any, full_func_name: str, class_name: Optional[str]) -> None:
         """

@@ -50,7 +50,7 @@ The settings file defines how the `variable-lifecycle-tracker` operates. Below i
 
 | **Field**          | **Type**        | **Description**                                                                                  | **Example**                                |
 |---------------------|-----------------|--------------------------------------------------------------------------------------------------|--------------------------------------------|
-| `module_path`       | `string`        | Specifies the root module or package path for tracking. It helps exclude external libraries by limiting tracking to your project's code. | `"python"`                                 |
+| `module_path`       | `string`        | Specifies the root module or package path for tracking. It helps exclude external libraries by limiting tracking to your project's code, specifically with the module path to trace. | `"variable_tracker"`                                 |
 | `track_functions`   | `object` / `[]` | Defines the functions to be tracked. Keys represent function names (with optional paths), and values determine variables to track. Use an empty array `[]` to track all functions. | `{"calculate_total": "*"}`                |
 | `track_classes`     | `object` / `[]` | Defines the classes to be tracked. Keys represent class names (with optional paths), and values specify methods and variables to track. Use an empty array `[]` to track all classes. | `{}`                                      |
 | `print_table`       | `boolean`       | If `true`, prints the tracked variable data in a tabular format.                                  | `true`                                     |
@@ -59,10 +59,12 @@ The settings file defines how the `variable-lifecycle-tracker` operates. Below i
 
 2. **Use the tracker in your code:**
 
+### For Python Scripts:
+
 ```python
 from variable_tracker import Setup
 
-settings_file_path = ""
+settings_file_path = "settings.json"
 # Initialize the tracker
 tracker = Setup(settings_file_path)
 
@@ -86,6 +88,36 @@ finally:
     tracker.stop()
 ```
 
+### For Django (Using Middleware):
+```python
+# your_project/middleware.py
+from variable_tracker import Setup
+
+class VariableTrackerMiddleware:
+    def __init__(self, get_response):
+        self.get_response = get_response
+        # Initialize the tracker
+        self.tracker = Setup("settings.json")
+
+    def __call__(self, request):
+        try:
+            # Start tracking
+            self.tracker.start()
+
+            # Process the request
+            response = self.get_response(request)
+            return response
+        finally:
+            # Stop tracking
+            self.tracker.stop()
+
+# Add to settings.py
+MIDDLEWARE = [
+    'your_project.middleware.VariableTrackerMiddleware',
+    # ... other middleware
+]
+```
+
 ## ⚙️ Configuration Guide
 
 ### Naming Conventions
@@ -107,7 +139,7 @@ finally:
 
 ### Configuration Examples
 
-#### 1. Track Specific Function And All Classes
+#### 1. Track Specific Function
 ```json
 {
     "module_path": "python",
@@ -122,7 +154,7 @@ finally:
 }
 ```
 
-#### 2. Track Class With Specific Variable And All Functions
+#### 2. Track Class With Specific Variable
 ```json
 {
     "module_path": "python",
@@ -148,7 +180,7 @@ finally:
 }
 ```
 
-#### 4. Track ClassMethod, Function And All Classes
+#### 4. Track ClassMethod, Function
 ```json
 {
     "module_path": "python",

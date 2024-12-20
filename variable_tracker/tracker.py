@@ -64,18 +64,22 @@ class TrackerAbstract(ABC):
 
 class Tracker(TrackerAbstract):
     """
-    Concrete implementation of the variable tracking functionality.
-
-    This tracker provides a comprehensive mechanism for tracking variable 
-    lifecycles across different functions and classes, with configurable 
-    settings and output mechanisms.
+    Concrete implementation of the TrackerAbstract class for tracking function calls 
+    and managing variable lifecycles within the code. It leverages the settings, 
+    function tracking, and printer to provide optimized trace functionality.
 
     Attributes:
-        settings (SettingsData): Configuration settings for tracking.
-        function_tracker (FunctionTracker): Component responsible for tracking function variables.
-        printer (PrinterAbstract): Component responsible for printing variable changes.
+        settings (SettingsData): Configuration for the tracker behavior.
+        function_tracker (FunctionTracker): Responsible for tracking function-related data.
+        printer (PrinterAbstract): Handles printing the tracked data.
+        skip_paths (list): Paths to skip during tracing (e.g., Django and other frameworks).
+    
+    Methods:
+        _should_skip_frame: Determines if the current stack frame should be skipped.
+        _get_class_name: Extracts the class name from the given stack frame.
+        _trace_calls: Main method to trace function calls and variable changes.
     """
-
+    
     def __init__(
         self, 
         settings: SettingsData, 
@@ -83,95 +87,113 @@ class Tracker(TrackerAbstract):
         printer: PrinterAbstract
     ):
         """
-        Initialize the Tracker with necessary components.
+        Initialize the Tracker instance.
 
         Args:
-            settings (SettingsData): Configuration settings for variable tracking.
-            function_tracker (FunctionTracker): Mechanism to track function variables.
-            printer (PrinterAbstract): Mechanism to print variable changes.
+            settings (SettingsData): Configuration for the tracker behavior.
+            function_tracker (FunctionTracker): Function tracking object.
+            printer (PrinterAbstract): Printer object to display data.
         """
         self.settings = settings
         self.function_tracker = function_tracker
         self.printer = printer
+        # Paths to skip when tracing, such as Django and third-party libraries
+        self.skip_paths = [
+            'django',
+            'asgiref',
+            'urllib',
+            'socketserver',
+            'concurrent',
+            'multiprocessing',
+            'wsgiref',
+            'site-packages',
+            'lib/python',
+            '/usr/lib/python'
+        ]
 
-    def _get_class_name(self, frame: Any) -> Optional[str]:
+    def _should_skip_frame(self, filename: str) -> bool:
         """
-        Extract the class name from a stack frame.
-
-        Determines the name of the class containing the current method being executed.
-        This method specifically looks for the 'self' parameter in the frame's local variables.
+        Determine if the current frame should be skipped based on its filename.
 
         Args:
-            frame (Any): The current stack frame.
-
-        Returns:
-            Optional[str]: The name of the class, or None if not inside a class method.
+            filename (str): The filename from the frame.
         
-        Example:
-            If called inside a method of a class 'MyClass', returns 'MyClass'.
-            If called in a standalone function, returns None.
+        Returns:
+            bool: True if the frame should be skipped, otherwise False.
         """
-        return frame.f_locals.get("self", object).__class__.__name__ if "self" in frame.f_locals else None
+        # Skip if the filename is outside the module's path
+        if not self.settings.module_path in filename:
+            return True
+            
+        # Skip framework-related files such as Django or third-party libraries
+        return any(path in filename for path in self.skip_paths)
+
+    def _get_class_name(self, frame: Any) -> Optional[str]:
+        """Extract the class name from a stack frame."""
+        if "self" not in frame.f_locals:
+            return None
+            
+        try:
+            return frame.f_locals["self"].__class__.__name__
+        except (AttributeError, KeyError):
+            return None
     
     def _trace_calls(self, frame: Any, event: str, arg: Any) -> Any:
         """
-        Trace function calls and track variable changes.
-
-        This method is called for each function call during tracing. It performs 
-        the following key operations:
-        1. Checks if the current frame is within the specified module path
-        2. Extracts module, function, and class names
-        3. Traces function variables
-        4. Prints variable changes based on configuration settings
+        Trace function calls with Django-specific optimizations. It is the main 
+        function that processes the function call events and tracks the variables.
 
         Args:
             frame (Any): The current stack frame being traced.
             event (str): The type of event ('call', 'line', 'return', etc.).
             arg (Any): Additional event-specific argument.
-
+        
         Returns:
-            Any: Returns itself to continue tracing, enabling recursive tracing.
-
-        Notes:
-            - Only tracks functions outside the specified module path
-            - Prints variable changes when a function returns
-            - Uses different printing methods based on configuration
+            Any: Returns self to continue tracing the next frame.
         """
-        # Extract the file name without extension
-        file_name = Path(frame.f_code.co_filename).stem
+        try:
+            # Get filename from the stack frame
+            filename = frame.f_code.co_filename
 
-        # Skip tracing if the frame is within the specified module path
-        if not self.settings.module_path in frame.f_code.co_filename:
-            # Extract context information
+            # Skip processing if the frame should be skipped
+            if self._should_skip_frame(filename):
+                return self._trace_calls
+
+            # Extract context information like function, class, and module name
+            file_name = Path(filename).stem
             module_name = frame.f_globals.get("__name__", "")
             func_name = frame.f_code.co_name
             class_name = self._get_class_name(frame)
 
-            # Get the fully qualified function name
+            # Skip Django internal methods related to dispatching, middleware, or response
+            if any(name in func_name for name in ['dispatch', 'middleware', 'get_response']):
+                return self._trace_calls
+
+            # Get the fully qualified function name using function tracker
             full_func_name = self.function_tracker._get_function_full_name(
                 module_name, file_name, func_name, class_name
             )
             
-            # Process function variables if tracking is enabled
             if full_func_name:
-                # Track variables within the function
+                # Track the variables within the function call
                 self.function_tracker._trace_function_variables(frame, full_func_name, class_name)
                 
-                # Print variable changes when function returns
+                # Print the changes in the function's variables when it returns
                 if event == "return":
-                    # Choose printing method based on settings
                     if self.settings.print_table:
-                        # Print changes in tabular format
                         self.printer.print(
                             self.function_tracker.variable_changes, 
                             full_func_name
                         )
                     else:
-                        # Print full variable lifecycle
                         self.printer.print(
                             self.function_tracker.variable_lifecycle, 
                             full_func_name
                         )
         
-        # Return self to continue tracing
+        except Exception as e:
+            # Catch any exceptions that occur during tracing
+            print(f"Error in variable tracking: {str(e)}")
+            
+        # Return self to continue tracing further frames
         return self._trace_calls
