@@ -4,12 +4,12 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "variable-tracker"
-version = "0.1.2"
+version = "0.2.0"
 description = "A library to globally track variable changes and log them with file, line, and function details."
 readme = "README.md"
 license = { text = "MIT" }
 authors = [
-    { name = "Your Name", email = "vimalmahawar1@gmail.com" }
+    { name = "Vimal Mahawar", email = "vimalmahawar1@gmail.com" }
 ]
 requires-python = ">=3.6"
 dependencies = [

@@ -2,7 +2,7 @@
 
 All notable changes to this project will be documented in this file.
 
-## [0.1.2] - 2024-12-20
+## [0.2.0] - 2024-12-20
 ### Added
 - Added support for Django middleware integration.
 - New feature: Ability to track model methods in Django apps.
